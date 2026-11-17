@@ -91,7 +91,7 @@
 
 <div id="start">
   <h1 style="font-size:34px;margin:0">Leise-Arbeiten-Monitor</h1>
-  <p>Der Browser fragt gleich nach dem Mikrofon. Es wird nichts aufgenommen oder gespeichert, die Seite misst nur die Lautstärke.</p>
+  <p>Der Browser fragt gleich nach dem Mikrofon. Es wird nichts aufgenommen oder gespeichert, die Seite misst nur die Lautst&#228;rke.</p>
   <button class="btn primary" id="startBtn">Messung starten</button>
   <p id="err"></p>
 </div>
@@ -131,27 +131,27 @@
     </div>
     <div class="jar" id="jar"></div>
     <div class="progress">
-      <div class="label"><span>Nächste Murmel</span><span id="nextIn"></span></div>
+      <div class="label"><span>N&#228;chste Murmel</span><span id="nextIn"></span></div>
       <div class="track"><div class="fill" id="fill"></div></div>
     </div>
     <div class="goal" id="goal"></div>
     <div class="stats">
-      <div><b id="quietPct">0 %</b><span>der Zeit im grünen Bereich</span></div>
-      <div><b id="streak">0:00</b><span>leise am Stück</span></div>
+      <div><b id="quietPct">0 %</b><span>der Zeit im gr&#252;nen Bereich</span></div>
+      <div><b id="streak">0:00</b><span>leise am St&#252;ck</span></div>
       <div><b id="best">0:00</b><span>Rekord heute</span></div>
     </div>
   </section>
 </main>
 
 <details>
-  <summary>Einstellungen für die Lehrkraft</summary>
+  <summary>Einstellungen f&#252;r die Lehrkraft</summary>
   <div class="settings">
     <div>
       <label for="sens">Empfindlichkeit des Mikrofons: <b id="sensVal"></b></label>
       <input type="range" id="sens" min="1" max="100" value="50">
     </div>
     <div>
-      <label for="lim">Grenze für den aktuellen Modus: <b id="limVal"></b></label>
+      <label for="lim">Grenze f&#252;r den aktuellen Modus: <b id="limVal"></b></label>
       <input type="range" id="lim" min="5" max="95" value="40">
     </div>
     <div>
@@ -176,10 +176,10 @@
 <script>
 (() => {
   const MODES = [
-    {id:"still",   name:"Stillarbeit",   limit:22, hint:"Jeder arbeitet für sich. Kein Gespräch."},
-    {id:"fluester",name:"Flüsterphase",  limit:38, hint:"Nur flüstern, nur mit dem Nachbarn."},
+    {id:"still",   name:"Stillarbeit",   limit:22, hint:"Jeder arbeitet f\u00fcr sich. Kein Gespr\u00e4ch."},
+    {id:"fluester",name:"Fl\u00fcsterphase",  limit:38, hint:"Nur fl\u00fcstern, nur mit dem Nachbarn."},
     {id:"partner", name:"Partnerarbeit", limit:52, hint:"Leise mit dem Partner sprechen."},
-    {id:"gruppe",  name:"Gruppenarbeit", limit:66, hint:"Am Gruppentisch in Zimmerlautstärke."}
+    {id:"gruppe",  name:"Gruppenarbeit", limit:66, hint:"Am Gruppentisch in Zimmerlautst\u00e4rke."}
   ];
   const COLORS = ["#2e9d5b","#3a7bd5","#e6a817","#8e5bd6","#d64535","#17a2a2","#ef7d22"];
   const $ = id => document.getElementById(id);
@@ -201,7 +201,7 @@
   let quietRun = 0, loudFor = 0, totalT = 0, quietT = 0, streakT = 0, bestT = 0;
   let last = performance.now();
 
-  // Oberfläche aufbauen
+  // Oberfl\u00e4che aufbauen
   const modesEl = $("modes");
   MODES.forEach(m => {
     const b = document.createElement("button");
@@ -292,7 +292,7 @@
     for (let i = 0; i < data.length; i++) sum += data[i]*data[i];
     const rms = Math.sqrt(sum / data.length);
     const db = 20 * Math.log10(rms + 1e-9);          // ca. -100 (Stille) bis 0
-    // Empfindlichkeit verschiebt den Nullpunkt: höher = schon leise Geräusche zeigen mehr an
+    // Empfindlichkeit verschiebt den Nullpunkt: h\u00f6her = schon leise Ger\u00e4usche zeigen mehr an
     const floor = -75 + (sensitivity - 50) * -0.4;   // unterer Rand der Skala
     const span = 55;
     return Math.max(0, Math.min(100, (db - floor) / span * 100));
@@ -323,9 +323,9 @@
       } else {
         loudFor += dt;
         state = level <= lim + 12 ? "warn" : "loud";
-        if (loudFor > 2.5){ quietRun = 0; streakT = 0; } // kurzes Husten zählt nicht
+        if (loudFor > 2.5){ quietRun = 0; streakT = 0; } // kurzes Husten z\u00e4hlt nicht
       }
-      const txt = {ok:"Super, schön leise!", warn:"Etwas leiser, bitte", loud:"Zu laut!"}[state];
+      const txt = {ok:"Super, sch\u00f6n leise!", warn:"Etwas leiser, bitte", loud:"Zu laut!"}[state];
       $("status").textContent = txt;
       setColor(state === "ok" ? "#2e9d5b" : state === "warn" ? "#e6a817" : "#d64535");
       setMouth(state);

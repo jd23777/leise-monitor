@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leise-Arbeiten-Monitor</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --ink:#1f2a2e; --muted:#6b7478;
+    --green:#2e9d5b; --yellow:#e6a817; --red:#d64535;
+    --card:#ffffff; --line:#e2ddd2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; min-height:100vh;
+    transition: background-color .6s;
+  }
+  body.loud{background:#f7e3df}
+  header{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 24px; border-bottom:1px solid var(--line); flex-wrap:wrap;
+  }
+  header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.2px}
+  .modes{display:flex;gap:6px;flex-wrap:wrap}
+  .modes button, .btn{
+    font:inherit; font-size:15px; border:1px solid var(--line); background:var(--card);
+    padding:8px 14px; border-radius:10px; cursor:pointer; color:var(--ink);
+  }
+  .modes button.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn.primary{background:var(--green);color:#fff;border-color:var(--green);font-size:20px;padding:14px 28px}
+  main{
+    flex:1; display:grid; grid-template-columns: 1.3fr 1fr; gap:24px; padding:24px;
+    align-items:stretch;
+  }
+  @media (max-width:900px){ main{grid-template-columns:1fr} }
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;display:flex;flex-direction:column}
+  /* Meter */
+  .meterwrap{display:flex;gap:28px;align-items:center;justify-content:center;flex:1}
+  .face{width:min(34vw,280px);height:min(34vw,280px)}
+  .bar{
+    position:relative; width:70px; height:min(56vh,420px); border-radius:35px;
+    background:linear-gradient(to top,var(--green) 0%,var(--green) 45%,var(--yellow) 60%,var(--red) 85%);
+    overflow:hidden; border:3px solid var(--ink);
+  }
+  .bar .cover{position:absolute;left:0;right:0;top:0;background:#ece8df;transition:height .12s linear}
+  .bar .limit{position:absolute;left:-6px;right:-6px;height:0;border-top:4px dashed var(--ink)}
+  .bar .peak{position:absolute;left:0;right:0;height:4px;background:var(--ink);opacity:.5;transition:bottom .3s}
+  .status{font-size:clamp(28px,4.2vw,54px);font-weight:800;text-align:center;margin:10px 0 0;min-height:1.2em}
+  .hint{font-size:clamp(16px,1.6vw,22px);text-align:center;color:var(--muted);margin:4px 0 0;min-height:1.4em}
+  /* Glas */
+  .jar-title{display:flex;justify-content:space-between;align-items:baseline}
+  .jar-title h2{margin:0;font-size:22px}
+  .count{font-size:40px;font-weight:800}
+  .count small{font-size:20px;color:var(--muted);font-weight:600}
+  .jar{
+    position:relative; margin:16px auto 0; width:220px; height:260px;
+    border:5px solid var(--ink); border-top:none; border-radius:0 0 38px 38px;
+    display:flex; flex-wrap:wrap-reverse; align-content:flex-start; justify-content:center;
+    padding:8px; gap:4px; overflow:hidden; background:#fbfaf7;
+  }
+  .jar::before{content:"";position:absolute;top:0;left:-5px;right:-5px;height:5px;background:var(--ink);border-radius:3px}
+  .marble{width:26px;height:26px;border-radius:50%;box-shadow: inset -4px -4px 0 rgba(0,0,0,.18), inset 3px 3px 0 rgba(255,255,255,.45);animation:drop .5s ease-out}
+  @keyframes drop{from{transform:translateY(-200px)}to{transform:none}}
+  .progress{margin-top:18px}
+  .progress .label{display:flex;justify-content:space-between;font-size:15px;color:var(--muted);margin-bottom:6px}
+  .track{height:18px;background:#ece8df;border-radius:9px;overflow:hidden}
+  .fill{height:100%;width:0;background:var(--green);transition:width .3s linear}
+  .goal{margin-top:16px;font-size:17px;text-align:center;min-height:1.4em}
+  .goal.done{font-size:26px;font-weight:800;color:var(--green)}
+  .stats{display:flex;justify-content:space-around;margin-top:auto;padding-top:18px;border-top:1px solid var(--line)}
+  .stats div{text-align:center}
+  .stats b{display:block;font-size:24px}
+  .stats span{font-size:13px;color:var(--muted)}
+  /* Einstellungen */
+  details{padding:0 24px 20px}
+  details summary{cursor:pointer;color:var(--muted);font-size:15px}
+  .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin-top:14px}
+  .settings label{display:block;font-size:14px;color:var(--muted);margin-bottom:4px}
+  .settings input[type=range]{width:100%}
+  .settings input[type=number]{width:80px;font:inherit;padding:4px 6px}
+  /* Start-Overlay */
+  #start{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px;z-index:5}
+  #start p{max-width:560px;color:var(--muted);font-size:17px;margin:0}
+  #err{color:var(--red);font-weight:600}
+</style>
+</head>
+<body>
+
+<div id="start">
+  <h1 style="font-size:34px;margin:0">Leise-Arbeiten-Monitor</h1>
+  <p>Der Browser fragt gleich nach dem Mikrofon. Es wird nichts aufgenommen oder gespeichert, die Seite misst nur die Lautstärke.</p>
+  <button class="btn primary" id="startBtn">Messung starten</button>
+  <p id="err"></p>
+</div>
+
+<header>
+  <h1>Wie laut sind wir gerade?</h1>
+  <div class="modes" id="modes"></div>
+  <div style="display:flex;gap:6px">
+    <button class="btn" id="pauseBtn">Pause</button>
+    <button class="btn" id="fsBtn">Vollbild</button>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="meterwrap">
+      <svg class="face" viewBox="0 0 200 200" aria-hidden="true">
+        <circle id="faceBg" cx="100" cy="100" r="92" fill="#2e9d5b"/>
+        <circle cx="70" cy="80" r="11" fill="#1f2a2e"/>
+        <circle cx="130" cy="80" r="11" fill="#1f2a2e"/>
+        <path id="mouth" d="M60 125 Q100 160 140 125" stroke="#1f2a2e" stroke-width="9" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="bar" id="bar">
+        <div class="cover" id="cover"></div>
+        <div class="peak" id="peak"></div>
+        <div class="limit" id="limit"></div>
+      </div>
+    </div>
+    <p class="status" id="status">Bereit</p>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <section class="card">
+    <div class="jar-title">
+      <h2>Ruhe-Glas</h2>
+      <div class="count"><span id="marbleCount">0</span> <small>/ <span id="goalLabel">20</span></small></div>
+    </div>
+    <div class="jar" id="jar"></div>
+    <div class="progress">
+      <div class="label"><span>Nächste Murmel</span><span id="nextIn"></span></div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+    </div>
+    <div class="goal" id="goal"></div>
+    <div class="stats">
+      <div><b id="quietPct">0 %</b><span>der Zeit im grünen Bereich</span></div>
+      <div><b id="streak">0:00</b><span>leise am Stück</span></div>
+      <div><b id="best">0:00</b><span>Rekord heute</span></div>
+    </div>
+  </section>
+</main>
+
+<details>
+  <summary>Einstellungen für die Lehrkraft</summary>
+  <div class="settings">
+    <div>
+      <label for="sens">Empfindlichkeit des Mikrofons: <b id="sensVal"></b></label>
+      <input type="range" id="sens" min="1" max="100" value="50">
+    </div>
+    <div>
+      <label for="lim">Grenze für den aktuellen Modus: <b id="limVal"></b></label>
+      <input type="range" id="lim" min="5" max="95" value="40">
+    </div>
+    <div>
+      <label for="secs">Sekunden leise pro Murmel</label>
+      <input type="number" id="secs" min="5" max="600" value="30">
+    </div>
+    <div>
+      <label for="goalIn">Murmeln bis zur Belohnung</label>
+      <input type="number" id="goalIn" min="1" max="60" value="20">
+    </div>
+    <div>
+      <label for="goalText">Belohnung (wird angezeigt)</label>
+      <input type="text" id="goalText" value="5 Minuten Spiel am Ende der Stunde" style="width:100%;font:inherit;padding:4px 6px">
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <button class="btn" id="resetBtn">Glas leeren</button>
+    </div>
+  </div>
+</details>
+
+<script>
+(() => {
+  const MODES = [
+    {id:"still",   name:"Stillarbeit",   limit:22, hint:"Jeder arbeitet für sich. Kein Gespräch."},
+    {id:"fluester",name:"Flüsterphase",  limit:38, hint:"Nur flüstern, nur mit dem Nachbarn."},
+    {id:"partner", name:"Partnerarbeit", limit:52, hint:"Leise mit dem Partner sprechen."},
+    {id:"gruppe",  name:"Gruppenarbeit", limit:66, hint:"Am Gruppentisch in Zimmerlautstärke."}
+  ];
+  const COLORS = ["#2e9d5b","#3a7bd5","#e6a817","#8e5bd6","#d64535","#17a2a2","#ef7d22"];
+  const $ = id => document.getElementById(id);
+
+  const store = {
+    get(k, d){ try{ const v = localStorage.getItem("lam_"+k); return v===null?d:JSON.parse(v);}catch(e){return d;} },
+    set(k, v){ try{ localStorage.setItem("lam_"+k, JSON.stringify(v)); }catch(e){} }
+  };
+
+  let mode = MODES.find(m => m.id === store.get("mode","fluester")) || MODES[1];
+  let limits = store.get("limits", {});
+  let sensitivity = store.get("sens", 50);
+  let secsPerMarble = store.get("secs", 30);
+  let goal = store.get("goal", 20);
+  let marbles = store.get("marbles", 0);
+
+  let analyser, data, running = false, paused = false;
+  let level = 0, peak = 0, peakT = 0;
+  let quietRun = 0, loudFor = 0, totalT = 0, quietT = 0, streakT = 0, bestT = 0;
+  let last = performance.now();
+
+  // Oberfläche aufbauen
+  const modesEl = $("modes");
+  MODES.forEach(m => {
+    const b = document.createElement("button");
+    b.textContent = m.name; b.dataset.id = m.id;
+    b.onclick = () => { mode = m; store.set("mode", m.id); syncMode(); };
+    modesEl.appendChild(b);
+  });
+  function currentLimit(){ return limits[mode.id] ?? mode.limit; }
+  function syncMode(){
+    [...modesEl.children].forEach(b => b.classList.toggle("active", b.dataset.id === mode.id));
+    $("lim").value = currentLimit(); $("limVal").textContent = currentLimit();
+    $("limit").style.bottom = currentLimit() + "%";
+    $("hint").textContent = mode.hint;
+  }
+  $("sens").value = sensitivity; $("sensVal").textContent = sensitivity;
+  $("secs").value = secsPerMarble; $("goalIn").value = goal;
+  $("goalText").value = store.get("goalText", $("goalText").value);
+
+  $("sens").oninput = e => { sensitivity = +e.target.value; $("sensVal").textContent = sensitivity; store.set("sens", sensitivity); };
+  $("lim").oninput = e => { limits[mode.id] = +e.target.value; store.set("limits", limits); syncMode(); };
+  $("secs").onchange = e => { secsPerMarble = Math.max(5, +e.target.value || 30); store.set("secs", secsPerMarble); };
+  $("goalIn").onchange = e => { goal = Math.max(1, +e.target.value || 20); store.set("goal", goal); renderJar(); };
+  $("goalText").oninput = e => { store.set("goalText", e.target.value); renderJar(); };
+  $("resetBtn").onclick = () => { marbles = 0; store.set("marbles", 0); quietRun = 0; renderJar(true); };
+  $("pauseBtn").onclick = () => {
+    paused = !paused;
+    $("pauseBtn").textContent = paused ? "Weiter" : "Pause";
+    if (paused){ $("status").textContent = "Pause"; setColor("#9aa3a6"); }
+  };
+  $("fsBtn").onclick = () => {
+    const d = document.documentElement;
+    try{ document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen(); }catch(e){}
+  };
+
+  function renderJar(full){
+    const jar = $("jar");
+    if (full) jar.innerHTML = "";
+    const shown = Math.min(marbles, 48);
+    while (jar.children.length < shown){
+      const m = document.createElement("div");
+      m.className = "marble";
+      m.style.background = COLORS[jar.children.length % COLORS.length];
+      jar.appendChild(m);
+    }
+    while (jar.children.length > shown) jar.lastChild.remove();
+    $("marbleCount").textContent = marbles;
+    $("goalLabel").textContent = goal;
+    const g = $("goal");
+    if (marbles >= goal){ g.className = "goal done"; g.textContent = "Geschafft! " + $("goalText").value; }
+    else { g.className = "goal"; g.textContent = "Noch " + (goal - marbles) + " bis: " + $("goalText").value; }
+  }
+
+  function fmt(s){ s = Math.floor(s); return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); }
+
+  function setColor(c){ $("faceBg").setAttribute("fill", c); }
+  function setMouth(state){
+    const d = state === "ok"   ? "M60 125 Q100 160 140 125"
+            : state === "warn" ? "M65 135 L135 135"
+            :                    "M60 145 Q100 112 140 145";
+    $("mouth").setAttribute("d", d);
+  }
+
+  // Mikrofon starten
+  $("startBtn").onclick = async () => {
+    $("err").textContent = "";
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}
+      });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaStreamSource(stream);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      data = new Float32Array(analyser.fftSize);
+      src.connect(analyser);
+      running = true;
+      $("start").style.display = "none";
+      last = performance.now();
+      requestAnimationFrame(loop);
+    }catch(e){
+      $("err").textContent = "Kein Zugriff auf das Mikrofon. Bitte im Browser erlauben und die Seite neu laden. (" + (e.name || e) + ")";
+    }
+  };
+
+  function measure(){
+    analyser.getFloatTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i]*data[i];
+    const rms = Math.sqrt(sum / data.length);
+    const db = 20 * Math.log10(rms + 1e-9);          // ca. -100 (Stille) bis 0
+    // Empfindlichkeit verschiebt den Nullpunkt: höher = schon leise Geräusche zeigen mehr an
+    const floor = -75 + (sensitivity - 50) * -0.4;   // unterer Rand der Skala
+    const span = 55;
+    return Math.max(0, Math.min(100, (db - floor) / span * 100));
+  }
+
+  function loop(now){
+    if (!running) return;
+    const dt = Math.min(0.25, (now - last) / 1000); last = now;
+    const raw = measure();
+    // schnell hoch, langsam runter, damit die Anzeige ruhig bleibt
+    level += (raw - level) * (raw > level ? 0.35 : 0.06);
+
+    if (level > peak || now - peakT > 2500){ peak = level; peakT = now; }
+    $("cover").style.height = (100 - level) + "%";
+    $("peak").style.bottom = peak + "%";
+
+    if (!paused){
+      const lim = currentLimit();
+      totalT += dt;
+      let state;
+      if (level <= lim){
+        state = "ok"; loudFor = 0;
+        quietT += dt; streakT += dt; quietRun += dt;
+        if (streakT > bestT) bestT = streakT;
+        if (quietRun >= secsPerMarble){
+          quietRun = 0; marbles++; store.set("marbles", marbles); renderJar();
+        }
+      } else {
+        loudFor += dt;
+        state = level <= lim + 12 ? "warn" : "loud";
+        if (loudFor > 2.5){ quietRun = 0; streakT = 0; } // kurzes Husten zählt nicht
+      }
+      const txt = {ok:"Super, schön leise!", warn:"Etwas leiser, bitte", loud:"Zu laut!"}[state];
+      $("status").textContent = txt;
+      setColor(state === "ok" ? "#2e9d5b" : state === "warn" ? "#e6a817" : "#d64535");
+      setMouth(state);
+      document.body.classList.toggle("loud", state === "loud" && loudFor > 1);
+      $("hint").textContent = state === "loud" && loudFor > 2.5
+        ? "Die Murmel-Zeit startet neu, sobald es wieder leise ist."
+        : mode.hint;
+
+      $("fill").style.width = Math.min(100, quietRun / secsPerMarble * 100) + "%";
+      $("nextIn").textContent = "noch " + Math.ceil(secsPerMarble - quietRun) + " s";
+      $("quietPct").textContent = Math.round(quietT / Math.max(1, totalT) * 100) + " %";
+      $("streak").textContent = fmt(streakT);
+      $("best").textContent = fmt(bestT);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  syncMode(); renderJar(true);
+})();
+</script>
+</body>
+</html>

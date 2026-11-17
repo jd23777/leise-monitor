@@ -64,6 +64,14 @@
   .jar::before{content:"";position:absolute;top:0;left:-5px;right:-5px;height:5px;background:var(--ink);border-radius:3px}
   .marble{width:26px;height:26px;border-radius:50%;box-shadow: inset -4px -4px 0 rgba(0,0,0,.18), inset 3px 3px 0 rgba(255,255,255,.45);animation:drop .5s ease-out}
   @keyframes drop{from{transform:translateY(-200px)}to{transform:none}}
+  .chal{display:none;text-align:center;margin-top:10px;padding:12px;border-radius:14px;background:#f4f1ea}
+  .chal.on{display:block}
+  .chal .time{font-size:clamp(48px,8vw,110px);font-weight:800;font-variant-numeric:tabular-nums;line-height:1.05}
+  .chal .sub{color:var(--muted);font-size:18px}
+  .chal.reset{background:#f7e3df}
+  .chal.reset .time{color:var(--red)}
+  .chal.win{background:#e1f2e7}
+  .chal.win .time{color:var(--green);font-size:clamp(40px,6vw,80px)}
   .progress{margin-top:18px}
   .progress .label{display:flex;justify-content:space-between;font-size:15px;color:var(--muted);margin-bottom:6px}
   .track{height:18px;background:#ece8df;border-radius:9px;overflow:hidden}
@@ -100,6 +108,7 @@
   <h1>Wie laut sind wir gerade?</h1>
   <div class="modes" id="modes"></div>
   <div style="display:flex;gap:6px">
+    <button class="btn" id="chalBtn">10-Minuten-Challenge</button>
     <button class="btn" id="pauseBtn">Pause</button>
     <button class="btn" id="fsBtn">Vollbild</button>
   </div>
@@ -122,6 +131,11 @@
     </div>
     <p class="status" id="status">Bereit</p>
     <p class="hint" id="hint"></p>
+    <div class="chal" id="chal">
+      <div class="sub" id="chalTitle"></div>
+      <div class="time" id="chalTime"></div>
+      <div class="sub" id="chalSub"></div>
+    </div>
   </section>
 
   <section class="card">
@@ -167,6 +181,14 @@
       <input type="text" id="goalText" value="5 Minuten Spiel am Ende der Stunde" style="width:100%;font:inherit;padding:4px 6px">
     </div>
     <div>
+      <label for="chalMin">Challenge: Minuten am St&#252;ck leise</label>
+      <input type="number" id="chalMin" min="1" max="60" value="10">
+    </div>
+    <div>
+      <label for="chalBonus">Challenge: Bonus-Murmeln bei Erfolg</label>
+      <input type="number" id="chalBonus" min="0" max="30" value="5">
+    </div>
+    <div>
       <label>&nbsp;</label>
       <button class="btn" id="resetBtn">Glas leeren</button>
     </div>
@@ -195,6 +217,9 @@
   let secsPerMarble = store.get("secs", 30);
   let goal = store.get("goal", 20);
   let marbles = store.get("marbles", 0);
+  let chalMin = store.get("chalMin", 10);
+  let chalBonus = store.get("chalBonus", 5);
+  let chal = {on:false, left:0, tries:0, flashUntil:0};
 
   let analyser, data, running = false, paused = false;
   let level = 0, peak = 0, peakT = 0;
@@ -225,7 +250,25 @@
   $("secs").onchange = e => { secsPerMarble = Math.max(5, +e.target.value || 30); store.set("secs", secsPerMarble); };
   $("goalIn").onchange = e => { goal = Math.max(1, +e.target.value || 20); store.set("goal", goal); renderJar(); };
   $("goalText").oninput = e => { store.set("goalText", e.target.value); renderJar(); };
-  $("resetBtn").onclick = () => { marbles = 0; store.set("marbles", 0); quietRun = 0; renderJar(true); };
+  function chalLabel(){
+    $("chalBtn").textContent = chal.on ? "Challenge abbrechen" : chalMin + "-Minuten-Challenge";
+  }
+  $("chalMin").value = chalMin; $("chalBonus").value = chalBonus;
+  $("chalMin").onchange = e => { chalMin = Math.max(1, +e.target.value || 10); store.set("chalMin", chalMin); chalLabel(); };
+  $("chalBonus").onchange = e => { chalBonus = Math.max(0, +e.target.value || 0); store.set("chalBonus", chalBonus); };
+  $("chalBtn").onclick = () => {
+    if (chal.on){
+      chal.on = false; $("chal").className = "chal";
+    } else {
+      chal = {on:true, left:chalMin*60, tries:1, flashUntil:0};
+      $("chalTitle").textContent = "Challenge: " + chalMin + " Minuten am St\u00fcck leise";
+      $("chalTime").textContent = fmt(chal.left);
+      $("chalSub").textContent = "Versuch 1";
+      $("chal").className = "chal on";
+    }
+    chalLabel();
+  };
+  $("resetBtn").onclick =() => { marbles = 0; store.set("marbles", 0); quietRun = 0; renderJar(true); };
   $("pauseBtn").onclick = () => {
     paused = !paused;
     $("pauseBtn").textContent = paused ? "Weiter" : "Pause";
@@ -334,7 +377,31 @@
         ? "Die Murmel-Zeit startet neu, sobald es wieder leise ist."
         : mode.hint;
 
-      $("fill").style.width = Math.min(100, quietRun / secsPerMarble * 100) + "%";
+      if (chal.on){
+        const full = chalMin * 60;
+        if (loudFor > 2.5){
+          if (chal.left < full - 0.5){ chal.tries++; chal.flashUntil = now + 3000; }
+          chal.left = full;
+        } else {
+          chal.left -= dt;
+        }
+        if (chal.left <= 0){
+          chal.on = false;
+          marbles += chalBonus; store.set("marbles", marbles); renderJar();
+          $("chal").className = "chal on win";
+          $("chalTime").textContent = "Geschafft!";
+          $("chalSub").textContent = chalBonus > 0 ? "+" + chalBonus + " Murmeln f\u00fcr das Ruhe-Glas" : chalMin + " Minuten am St\u00fcck leise";
+          chalLabel();
+          setTimeout(() => { if (!chal.on) $("chal").className = "chal"; }, 20000);
+        } else {
+          const flashing = now < chal.flashUntil;
+          $("chal").className = "chal on" + (flashing ? " reset" : "");
+          $("chalTime").textContent = fmt(Math.ceil(chal.left));
+          $("chalSub").textContent = flashing ? "Zu laut! Die Zeit startet von vorn." : "Versuch " + chal.tries;
+        }
+      }
+
+      $("fill").style.width =Math.min(100, quietRun / secsPerMarble * 100) + "%";
       $("nextIn").textContent = "noch " + Math.ceil(secsPerMarble - quietRun) + " s";
       $("quietPct").textContent = Math.round(quietT / Math.max(1, totalT) * 100) + " %";
       $("streak").textContent = fmt(streakT);
@@ -343,7 +410,7 @@
     requestAnimationFrame(loop);
   }
 
-  syncMode(); renderJar(true);
+  syncMode(); renderJar(true); chalLabel();
 })();
 </script>
 </body>
